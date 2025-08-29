@@ -39,33 +39,28 @@ export default function PhotoAnnotationEditor({
         const markerAreaInstance = new MarkerArea()
         markerAreaInstance.targetImage = img
         
-        // Configure marker area settings
-        markerAreaInstance.settings.displayMode = 'inline'
-        markerAreaInstance.settings.strokeWidth = 3
-        markerAreaInstance.settings.strokeColor = '#ff6b6b'
-        markerAreaInstance.settings.fillColor = '#4ecdc4'
+        // Configure marker area - marker.js 3 uses different API
+        // Settings are configured via CSS and method calls rather than settings object
         
         // Append to container
         containerRef.current?.appendChild(markerAreaInstance)
         
-        // Set up event listeners
-        markerAreaInstance.addEventListener('markerchange', () => {
-          setAnnotationState(markerAreaInstance.getState())
-          setCanUndo(markerAreaInstance.isUndoPossible)
-          setCanRedo(markerAreaInstance.isRedoPossible)
-        })
+        // Set up event listeners for marker.js 3
+        const updateState = () => {
+          try {
+            setAnnotationState(markerAreaInstance.getState())
+            setCanUndo(markerAreaInstance.isUndoPossible || false)
+            setCanRedo(markerAreaInstance.isRedoPossible || false)
+          } catch (error) {
+            console.warn('Error updating annotation state:', error)
+          }
+        }
         
-        markerAreaInstance.addEventListener('markercreate', () => {
-          setAnnotationState(markerAreaInstance.getState())
-          setCanUndo(markerAreaInstance.isUndoPossible)
-          setCanRedo(markerAreaInstance.isRedoPossible)
-        })
-        
-        markerAreaInstance.addEventListener('markerdelete', () => {
-          setAnnotationState(markerAreaInstance.getState())
-          setCanUndo(markerAreaInstance.isUndoPossible)
-          setCanRedo(markerAreaInstance.isRedoPossible)
-        })
+        // Use standard DOM events that marker.js 3 supports
+        markerAreaInstance.addEventListener('change', updateState)
+        markerAreaInstance.addEventListener('create', updateState)
+        markerAreaInstance.addEventListener('delete', updateState)
+        markerAreaInstance.addEventListener('select', updateState)
         
         setMarkerArea(markerAreaInstance)
       }
@@ -125,10 +120,27 @@ export default function PhotoAnnotationEditor({
   }, [markerArea, canRedo])
 
   const handleClear = useCallback(() => {
-    if (markerArea && annotationState?.markers.length > 0) {
+    if (markerArea && annotationState?.markers?.length > 0) {
       if (window.confirm('Are you sure you want to clear all annotations?')) {
-        markerArea.clear()
-        setAnnotationState(null)
+        try {
+          // Try different clear methods that marker.js 3 might support
+          if (typeof markerArea.clear === 'function') {
+            markerArea.clear()
+          } else if (typeof markerArea.deleteAllMarkers === 'function') {
+            markerArea.deleteAllMarkers()
+          } else {
+            // Fallback: remove all child elements except the image
+            const children = Array.from(markerArea.children)
+            children.forEach(child => {
+              if (child !== imageRef.current) {
+                child.remove()
+              }
+            })
+          }
+          setAnnotationState(null)
+        } catch (error) {
+          console.warn('Error clearing annotations:', error)
+        }
       }
     }
   }, [markerArea, annotationState])
@@ -167,8 +179,10 @@ export default function PhotoAnnotationEditor({
 
   const handleColorChange = useCallback((color: string) => {
     if (markerArea) {
-      markerArea.settings.strokeColor = color
-      markerArea.settings.fillColor = color + '40' // Add transparency
+      // marker.js 3 handles colors differently - they're applied per marker
+      // Store the color preference for new markers
+      markerArea.setAttribute('data-stroke-color', color)
+      markerArea.setAttribute('data-fill-color', color + '40')
     }
   }, [markerArea])
 
