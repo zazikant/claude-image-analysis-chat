@@ -1,6 +1,4 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
-import { MarkerArea } from '@markerjs/markerjs3'
-import '@markerjs/markerjs3/markerjs3.css'
 
 interface PhotoAnnotationEditorProps {
   imageData: string
@@ -9,10 +7,15 @@ interface PhotoAnnotationEditorProps {
   customPrompt?: string
 }
 
-interface AnnotationState {
-  width: number
-  height: number
-  markers: any[]
+interface Annotation {
+  type: 'rectangle' | 'circle' | 'arrow' | 'text'
+  x: number
+  y: number
+  width?: number
+  height?: number
+  radius?: number
+  text?: string
+  color: string
 }
 
 export default function PhotoAnnotationEditor({ 
@@ -21,177 +24,224 @@ export default function PhotoAnnotationEditor({
   onCancel, 
   customPrompt 
 }: PhotoAnnotationEditorProps) {
-  const [markerArea, setMarkerArea] = useState<MarkerArea | null>(null)
-  const [currentTool, setCurrentTool] = useState<string>('select')
-  const [annotationState, setAnnotationState] = useState<AnnotationState | null>(null)
-  const [canUndo, setCanUndo] = useState(false)
-  const [canRedo, setCanRedo] = useState(false)
+  const [annotations, setAnnotations] = useState<Annotation[]>([])
+  const [currentTool, setCurrentTool] = useState<string>('rectangle')
+  const [currentColor, setCurrentColor] = useState('#ff6b6b')
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [startPoint, setStartPoint] = useState<{x: number, y: number} | null>(null)
+  const [textInput, setTextInput] = useState('')
+  const [showTextInput, setShowTextInput] = useState(false)
+  const [textPosition, setTextPosition] = useState<{x: number, y: number} | null>(null)
+  
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Initialize MarkerArea when image loads
+  // Load image and setup canvas
   useEffect(() => {
-    if (imageRef.current && containerRef.current) {
+    if (imageRef.current && canvasRef.current) {
       const img = imageRef.current
+      const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d')
       
-      const initializeMarkerArea = () => {
-        // Create MarkerArea instance
-        const markerAreaInstance = new MarkerArea()
-        markerAreaInstance.targetImage = img
+      const setupCanvas = () => {
+        // Set canvas size to match image
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
         
-        // Configure marker area - marker.js 3 uses different API
-        // Settings are configured via CSS and method calls rather than settings object
+        // Scale canvas display to fit container
+        const maxWidth = 800
+        const maxHeight = 600
+        const scale = Math.min(maxWidth / img.naturalWidth, maxHeight / img.naturalHeight, 1)
         
-        // Append to container
-        containerRef.current?.appendChild(markerAreaInstance)
+        canvas.style.width = `${img.naturalWidth * scale}px`
+        canvas.style.height = `${img.naturalHeight * scale}px`
         
-        // Set up event listeners for marker.js 3
-        const updateState = () => {
-          try {
-            setAnnotationState(markerAreaInstance.getState())
-            setCanUndo(markerAreaInstance.isUndoPossible || false)
-            setCanRedo(markerAreaInstance.isRedoPossible || false)
-          } catch (error) {
-            console.warn('Error updating annotation state:', error)
-          }
-        }
-        
-        // Use marker.js 3 specific events with proper typing
-        markerAreaInstance.addEventListener('markerchange' as any, updateState)
-        markerAreaInstance.addEventListener('markercreated' as any, updateState)
-        markerAreaInstance.addEventListener('markerdeleted' as any, updateState)
-        markerAreaInstance.addEventListener('markerselected' as any, updateState)
-        
-        setMarkerArea(markerAreaInstance)
+        redrawCanvas()
       }
       
       if (img.complete) {
-        initializeMarkerArea()
+        setupCanvas()
       } else {
-        img.addEventListener('load', initializeMarkerArea)
+        img.addEventListener('load', setupCanvas)
       }
     }
+  }, [imageData, annotations])
+
+  const redrawCanvas = useCallback(() => {
+    const canvas = canvasRef.current
+    const img = imageRef.current
+    if (!canvas || !img) return
     
-    return () => {
-      if (markerArea) {
-        markerArea.destroy?.()
-      }
-    }
-  }, [imageData])
-
-  // Annotation tools
-  const annotationTools = [
-    { id: 'select', name: 'Select', icon: '↖️', description: 'Select and move annotations' },
-    { id: 'ArrowMarker', name: 'Arrow', icon: '→', description: 'Draw arrows to point at objects' },
-    { id: 'RectMarker', name: 'Rectangle', icon: '▭', description: 'Draw rectangular highlights' },
-    { id: 'EllipseMarker', name: 'Circle', icon: '○', description: 'Draw circular highlights' },
-    { id: 'PolygonMarker', name: 'Polygon', icon: '⬟', description: 'Draw custom shapes' },
-    { id: 'FreehandMarker', name: 'Freehand', icon: '✏️', description: 'Draw freehand annotations' },
-    { id: 'TextMarker', name: 'Text', icon: 'T', description: 'Add text labels and descriptions' },
-    { id: 'CalloutMarker', name: 'Callout', icon: '💬', description: 'Add speech bubbles and callouts' },
-    { id: 'HighlightMarker', name: 'Highlight', icon: '🖍️', description: 'Highlight important areas' },
-    { id: 'LineMarker', name: 'Line', icon: '―', description: 'Draw straight lines' },
-    { id: 'CurveMarker', name: 'Curve', icon: '〜', description: 'Draw curved lines' }
-  ]
-
-  const handleToolSelect = useCallback((toolId: string) => {
-    if (!markerArea) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
     
-    setCurrentTool(toolId)
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
     
-    try {
-      if (toolId === 'select') {
-        if (typeof markerArea.switchToSelectMode === 'function') {
-          markerArea.switchToSelectMode()
-        }
-      } else {
-        // Try to create marker - marker.js 3 API may vary
-        if (typeof markerArea.createMarker === 'function') {
-          markerArea.createMarker(toolId)
-        } else if (typeof (markerArea as any)[toolId] === 'function') {
-          (markerArea as any)[toolId]()
-        }
-      }
-    } catch (error) {
-      console.warn('Tool selection error:', error)
-    }
-  }, [markerArea])
-
-  const handleUndo = useCallback(() => {
-    if (markerArea && canUndo) {
-      try {
-        if (typeof markerArea.undo === 'function') {
-          markerArea.undo()
-        }
-      } catch (error) {
-        console.warn('Undo not available:', error)
-      }
-    }
-  }, [markerArea, canUndo])
-
-  const handleRedo = useCallback(() => {
-    if (markerArea && canRedo) {
-      try {
-        if (typeof markerArea.redo === 'function') {
-          markerArea.redo()
-        }
-      } catch (error) {
-        console.warn('Redo not available:', error)
-      }
-    }
-  }, [markerArea, canRedo])
-
-  const handleClear = useCallback(() => {
-    if (markerArea && annotationState?.markers?.length > 0) {
-      if (window.confirm('Are you sure you want to clear all annotations?')) {
-        try {
-          // Try different clear methods that marker.js 3 might support
-          if (typeof markerArea.clear === 'function') {
-            markerArea.clear()
-          } else if (typeof markerArea.deleteAllMarkers === 'function') {
-            markerArea.deleteAllMarkers()
-          } else {
-            // Fallback: remove all child elements except the image
-            const children = Array.from(markerArea.children)
-            children.forEach(child => {
-              if (child !== imageRef.current) {
-                child.remove()
-              }
-            })
-          }
-          setAnnotationState(null)
-        } catch (error) {
-          console.warn('Error clearing annotations:', error)
-        }
-      }
-    }
-  }, [markerArea, annotationState])
-
-  const handleSave = useCallback(async () => {
-    if (!markerArea) return
+    // Draw image
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
     
-    try {
-      // Get the current state
-      const state = markerArea.getState ? markerArea.getState() : annotationState
+    // Draw annotations
+    annotations.forEach(annotation => {
+      ctx.strokeStyle = annotation.color
+      ctx.fillStyle = annotation.color + '40'
+      ctx.lineWidth = 3
       
-      // Try to render with MarkerJS 3 renderer
-      try {
-        const { Renderer } = await import('@markerjs/markerjs3')
-        const renderer = new Renderer()
-        renderer.targetImage = imageRef.current!
-        
-        const annotatedImageData = await renderer.rasterize(state)
-        onSave(annotatedImageData, state)
-      } catch (renderError) {
-        // Fallback: just use the original image with annotation state
-        console.warn('Renderer not available, using original image:', renderError)
-        onSave(imageToAnnotate!, state)
+      switch (annotation.type) {
+        case 'rectangle':
+          if (annotation.width && annotation.height) {
+            ctx.strokeRect(annotation.x, annotation.y, annotation.width, annotation.height)
+            ctx.fillRect(annotation.x, annotation.y, annotation.width, annotation.height)
+          }
+          break
+        case 'circle':
+          if (annotation.radius) {
+            ctx.beginPath()
+            ctx.arc(annotation.x, annotation.y, annotation.radius, 0, 2 * Math.PI)
+            ctx.stroke()
+            ctx.fill()
+          }
+          break
+        case 'arrow':
+          if (annotation.width && annotation.height) {
+            const endX = annotation.x + annotation.width
+            const endY = annotation.y + annotation.height
+            
+            // Draw line
+            ctx.beginPath()
+            ctx.moveTo(annotation.x, annotation.y)
+            ctx.lineTo(endX, endY)
+            ctx.stroke()
+            
+            // Draw arrowhead
+            const angle = Math.atan2(annotation.height, annotation.width)
+            const arrowLength = 20
+            ctx.beginPath()
+            ctx.moveTo(endX, endY)
+            ctx.lineTo(endX - arrowLength * Math.cos(angle - Math.PI / 6), endY - arrowLength * Math.sin(angle - Math.PI / 6))
+            ctx.moveTo(endX, endY)
+            ctx.lineTo(endX - arrowLength * Math.cos(angle + Math.PI / 6), endY - arrowLength * Math.sin(angle + Math.PI / 6))
+            ctx.stroke()
+          }
+          break
+        case 'text':
+          if (annotation.text) {
+            ctx.font = '16px Arial'
+            ctx.fillStyle = annotation.color
+            ctx.fillText(annotation.text, annotation.x, annotation.y)
+          }
+          break
       }
-    } catch (error) {
-      console.error('Error saving annotation:', error)
-      alert('Error saving annotation. Please try again.')
+    })
+  }, [annotations])
+
+  const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
     }
-  }, [markerArea, annotationState, onSave, imageToAnnotate])
+  }
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const coords = getCanvasCoordinates(e)
+    
+    if (currentTool === 'text') {
+      setTextPosition(coords)
+      setShowTextInput(true)
+      return
+    }
+    
+    setIsDrawing(true)
+    setStartPoint(coords)
+  }
+
+  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !startPoint) return
+    
+    const coords = getCanvasCoordinates(e)
+    const newAnnotation: Annotation = {
+      type: currentTool as any,
+      x: startPoint.x,
+      y: startPoint.y,
+      color: currentColor
+    }
+
+    switch (currentTool) {
+      case 'rectangle':
+        newAnnotation.width = coords.x - startPoint.x
+        newAnnotation.height = coords.y - startPoint.y
+        break
+      case 'circle':
+        const radius = Math.sqrt(Math.pow(coords.x - startPoint.x, 2) + Math.pow(coords.y - startPoint.y, 2))
+        newAnnotation.radius = radius
+        break
+      case 'arrow':
+        newAnnotation.width = coords.x - startPoint.x
+        newAnnotation.height = coords.y - startPoint.y
+        break
+    }
+
+    setAnnotations(prev => [...prev, newAnnotation])
+    setIsDrawing(false)
+    setStartPoint(null)
+  }
+
+  const handleTextSubmit = () => {
+    if (textInput.trim() && textPosition) {
+      const textAnnotation: Annotation = {
+        type: 'text',
+        x: textPosition.x,
+        y: textPosition.y,
+        text: textInput.trim(),
+        color: currentColor
+      }
+      setAnnotations(prev => [...prev, textAnnotation])
+      setTextInput('')
+      setShowTextInput(false)
+      setTextPosition(null)
+    }
+  }
+
+  const handleSave = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    
+    const annotatedImageData = canvas.toDataURL('image/png')
+    const annotationState = {
+      annotations,
+      imageWidth: canvas.width,
+      imageHeight: canvas.height
+    }
+    
+    onSave(annotatedImageData, annotationState)
+  }
+
+  const handleClear = () => {
+    if (annotations.length > 0 && window.confirm('Clear all annotations?')) {
+      setAnnotations([])
+    }
+  }
+
+  const handleUndo = () => {
+    if (annotations.length > 0) {
+      setAnnotations(prev => prev.slice(0, -1))
+    }
+  }
+
+  const annotationTools = [
+    { id: 'rectangle', name: 'Rectangle', icon: '▭', description: 'Draw rectangles' },
+    { id: 'circle', name: 'Circle', icon: '○', description: 'Draw circles' },
+    { id: 'arrow', name: 'Arrow', icon: '→', description: 'Draw arrows' },
+    { id: 'text', name: 'Text', icon: 'T', description: 'Add text' }
+  ]
 
   const colorPresets = [
     { name: 'Red', color: '#ff6b6b' },
@@ -204,15 +254,6 @@ export default function PhotoAnnotationEditor({
     { name: 'Teal', color: '#20c997' }
   ]
 
-  const handleColorChange = useCallback((color: string) => {
-    if (markerArea) {
-      // marker.js 3 handles colors differently - they're applied per marker
-      // Store the color preference for new markers
-      markerArea.setAttribute('data-stroke-color', color)
-      markerArea.setAttribute('data-fill-color', color + '40')
-    }
-  }, [markerArea])
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg max-w-6xl max-h-[95vh] w-full mx-4 flex flex-col">
@@ -222,8 +263,8 @@ export default function PhotoAnnotationEditor({
           <div className="flex space-x-2">
             <button
               onClick={handleSave}
-              disabled={!annotationState?.markers.length}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={annotations.length === 0}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
             >
               Save & Analyze
             </button>
@@ -239,11 +280,10 @@ export default function PhotoAnnotationEditor({
         {/* Toolbar */}
         <div className="p-3 border-b bg-gray-50">
           <div className="flex flex-wrap gap-2 mb-3">
-            {/* Annotation Tools */}
             {annotationTools.map((tool) => (
               <button
                 key={tool.id}
-                onClick={() => handleToolSelect(tool.id)}
+                onClick={() => setCurrentTool(tool.id)}
                 className={`flex items-center space-x-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
                   currentTool === tool.id
                     ? 'bg-blue-600 text-white'
@@ -257,47 +297,36 @@ export default function PhotoAnnotationEditor({
             ))}
           </div>
 
-          {/* Action Buttons */}
           <div className="flex items-center justify-between">
             <div className="flex space-x-2">
               <button
                 onClick={handleUndo}
-                disabled={!canUndo}
-                className="flex items-center space-x-1 px-3 py-2 bg-white border rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Undo last action"
+                disabled={annotations.length === 0}
+                className="flex items-center space-x-1 px-3 py-2 bg-white border rounded text-sm hover:bg-gray-50 disabled:opacity-50"
               >
                 <span>↶</span>
                 <span>Undo</span>
               </button>
               <button
-                onClick={handleRedo}
-                disabled={!canRedo}
-                className="flex items-center space-x-1 px-3 py-2 bg-white border rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Redo last action"
-              >
-                <span>↷</span>
-                <span>Redo</span>
-              </button>
-              <button
                 onClick={handleClear}
-                disabled={!annotationState?.markers.length}
-                className="flex items-center space-x-1 px-3 py-2 bg-red-100 text-red-700 border border-red-200 rounded text-sm hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Clear all annotations"
+                disabled={annotations.length === 0}
+                className="flex items-center space-x-1 px-3 py-2 bg-red-100 text-red-700 border border-red-200 rounded text-sm hover:bg-red-200 disabled:opacity-50"
               >
                 <span>🗑️</span>
                 <span>Clear All</span>
               </button>
             </div>
 
-            {/* Color Presets */}
             <div className="flex items-center space-x-2">
               <span className="text-sm text-gray-600">Colors:</span>
               <div className="flex space-x-1">
                 {colorPresets.map((preset) => (
                   <button
                     key={preset.color}
-                    onClick={() => handleColorChange(preset.color)}
-                    className="w-6 h-6 rounded-full border-2 border-gray-300 hover:scale-110 transition-transform"
+                    onClick={() => setCurrentColor(preset.color)}
+                    className={`w-6 h-6 rounded-full border-2 hover:scale-110 transition-transform ${
+                      currentColor === preset.color ? 'border-gray-800' : 'border-gray-300'
+                    }`}
                     style={{ backgroundColor: preset.color }}
                     title={preset.name}
                   />
@@ -314,31 +343,71 @@ export default function PhotoAnnotationEditor({
               <strong>AI Prompt:</strong> {customPrompt}
             </p>
             <p className="text-xs text-blue-600 mt-1">
-              Annotate the important areas in your photo that relate to this prompt for better AI analysis.
+              Use the annotation tools to highlight important areas for better AI analysis.
             </p>
           </div>
         )}
 
-        {/* Main Content Area */}
+        {/* Main Content */}
         <div className="flex-1 overflow-auto p-4">
-          <div className="relative flex justify-center">
-            <div ref={containerRef} className="relative inline-block">
+          <div className="relative flex justify-center" ref={containerRef}>
+            <div className="relative">
               <img
                 ref={imageRef}
                 src={imageData}
                 alt="Photo to annotate"
-                className="max-w-full max-h-[60vh] object-contain"
-                style={{ display: 'block' }}
+                className="hidden"
+              />
+              <canvas
+                ref={canvasRef}
+                onMouseDown={handleMouseDown}
+                onMouseUp={handleMouseUp}
+                className="border border-gray-300 cursor-crosshair max-w-full max-h-[60vh] object-contain"
               />
             </div>
           </div>
         </div>
 
+        {/* Text Input Modal */}
+        {showTextInput && (
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div className="bg-white p-4 rounded-lg">
+              <h3 className="text-lg font-semibold mb-2">Add Text</h3>
+              <input
+                type="text"
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                placeholder="Enter text..."
+                className="w-full p-2 border rounded mb-3"
+                autoFocus
+                onKeyPress={(e) => e.key === 'Enter' && handleTextSubmit()}
+              />
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleTextSubmit}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={() => {
+                    setShowTextInput(false)
+                    setTextInput('')
+                    setTextPosition(null)
+                  }}
+                  className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="p-3 border-t bg-gray-50 text-center">
           <p className="text-xs text-gray-600">
-            Use the tools above to highlight, point out, or add notes to important areas in your photo. 
-            Click "Save & Analyze" when ready to get AI analysis of your annotated image.
+            Click and drag to create shapes. Use different tools and colors to highlight important areas.
           </p>
         </div>
       </div>
