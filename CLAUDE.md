@@ -3,10 +3,10 @@
 ## Project Overview
 **Type**: Full-stack web application with AI image analysis
 **Frontend**: Next.js with chat interface
-**Backend**: Flask API server
+**Backend**: Netlify Serverless Functions
 **Database**: Supabase (authentication + data storage)  
-**AI Processing**: Langchain + Google Gemini for image analysis
-**Deployment**: Flask app deployment
+**AI Processing**: Google Gemini for image analysis (direct integration)
+**Deployment**: Netlify (Static Site + Serverless Functions)
 
 ## Workflow Planning Sessions
 
@@ -15,6 +15,12 @@
 - **Status**: ✅ COMPLETED & FULLY FUNCTIONAL
 - **Objective**: Build fully working AI Image Analysis Chat App
 - **Achievement**: Successfully deployed working application with all features
+
+### Session 2: Production Deployment  
+- **Date**: 2025-08-29
+- **Status**: ✅ COMPLETED & LIVE
+- **Objective**: Deploy application to production on Netlify
+- **Achievement**: Successfully deployed to Netlify with working authentication and AI functionality
 
 ## Project Specifications
 
@@ -36,13 +42,14 @@
    - Store analysis results in Supabase tables
 
 ### Technical Stack
-- **Frontend**: Next.js with TypeScript, Tailwind CSS
-- **Backend**: Flask API with CORS enabled
+- **Frontend**: Next.js with TypeScript, Tailwind CSS (Static Export)
+- **Backend**: Netlify Serverless Functions (Python)
 - **Database**: Supabase PostgreSQL with RLS
 - **AI Model**: Google Gemini 1.5 Flash (direct integration)
 - **Image Storage**: Base64 format in database tables
 - **Authentication**: Supabase Auth with JWT tokens
-- **Development Tools**: Supabase MCP, Context7 MCP
+- **Deployment**: Netlify with GitHub integration
+- **Development Tools**: Supabase MCP, Context7 MCP, Netlify MCP
 
 ### Success Criteria ✅ ALL ACHIEVED
 - ✅ Successful running of Flask app (localhost:5000)
@@ -51,12 +58,15 @@
 - ✅ Proper data storage in Supabase database
 - ✅ Real-time chat interface working (localhost:3002)
 - ✅ Complete end-to-end user flow operational
+- ✅ **LIVE PRODUCTION DEPLOYMENT on Netlify**
+- ✅ **GitHub Repository with CI/CD integration**
 
 ## Development Tools & Workflow
 
 ### MCP Server Integration
 - **Supabase MCP**: Use for all database operations, schema management, and queries
 - **Context7 MCP**: Reference for latest library documentation and best practices
+- **Netlify MCP**: Used for deployment, environment variable management, and serverless functions
 - **Real-time Features**: Implement using Supabase REST API for live chat updates
 
 ## Development Workflow
@@ -104,6 +114,15 @@
 - ✅ Production database setup with Supabase
 - ✅ All components tested and working
 
+### Phase 6: Netlify Deployment ✅ COMPLETED
+- ✅ GitHub repository setup and push
+- ✅ Netlify project creation and linking
+- ✅ Environment variables configuration for production
+- ✅ Serverless functions deployment (Python)
+- ✅ Static site deployment with Next.js export
+- ✅ API key fixes and authentication debugging
+- ✅ Complete end-to-end production testing
+
 ### Quality Assurance Standards
 - Unit tests for Flask API endpoints
 - Frontend component testing
@@ -130,10 +149,11 @@
 1. **Project Structure**: Separate `/frontend` and `/backend` directories
 2. **Authentication**: Supabase built-in auth system
 3. **Image Processing**: Adapt provided Gemini analysis code for web API
-4. **Deployment**: Flask app deployment (as specified in success criteria)
+4. **Deployment**: Netlify serverless deployment with GitHub integration
 5. **Development Efficiency**: Use Supabase MCP for database operations
 6. **Documentation**: Reference Context7 MCP for latest library knowledge
 7. **Real-time Updates**: Implement via Supabase REST API for live chat experience
+8. **Production**: Netlify MCP for deployment automation and environment management
 
 ## Reference Code
 *Gemini image analysis sample provided for integration:*
@@ -141,36 +161,44 @@
 - Processes images with base64 encoding
 - Includes error handling and configuration management
 
-## 🚀 WORKING APPLICATION - EXACT WORKFLOW
+## 🚀 WORKING APPLICATION - PRODUCTION LIVE
 
-### Current Setup (FULLY FUNCTIONAL)
+### Current Setup (FULLY FUNCTIONAL - LIVE)
+- **🌐 LIVE URL**: https://claude-image-analysis-chat.netlify.app
+- **📦 GitHub**: https://github.com/zazikant/claude-image-analysis-chat
 - **Project ID**: `sayjajeatdrcejexxrih`
 - **Supabase URL**: https://sayjajeatdrcejexxrih.supabase.co
-- **Frontend URL**: http://localhost:3002
-- **Backend URL**: http://localhost:5000
+- **Local Frontend**: http://localhost:3002 (dev)
+- **Local Backend**: http://localhost:5000 (dev)
+- **Netlify Site ID**: d486ecec-d8d5-4034-a9d8-c3f1323aa4e9
 - **Gemini API**: Configured and working
 
-### How to Run the Application
+### How to Access the Application
 
-#### 1. Start Backend (Flask)
+#### 🌐 Production (LIVE)
+- **URL**: https://claude-image-analysis-chat.netlify.app
+- **Sign up**: Create account with any email/password
+- **Upload Image**: Click "Upload Image" button, select any image
+- **AI Analysis**: Gemini AI will analyze and describe the image
+- **✅ Status**: FULLY FUNCTIONAL AND LIVE
+
+#### 💻 Local Development
+1. **Start Backend (Flask)**
 ```bash
 cd backend
 python app.py
 ```
-✅ **Status**: Flask server running on http://localhost:5000
+✅ Flask server running on http://localhost:5000
 
-#### 2. Start Frontend (Next.js)
+2. **Start Frontend (Next.js)**
 ```bash
 cd frontend  
 npm run dev
 ```
-✅ **Status**: Next.js server running on http://localhost:3002
+✅ Next.js server running on http://localhost:3002
 
-#### 3. Access Application
+3. **Access Local**
 - **URL**: http://localhost:3002
-- **Sign up**: Create account with any email/password
-- **Upload Image**: Click "Upload Image" button, select any image
-- **AI Analysis**: Gemini AI will analyze and describe the image
 
 ### Database Schema (Deployed)
 ✅ **Tables Created**:
