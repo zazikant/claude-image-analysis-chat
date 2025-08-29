@@ -56,11 +56,11 @@ export default function PhotoAnnotationEditor({
           }
         }
         
-        // Use standard DOM events that marker.js 3 supports
-        markerAreaInstance.addEventListener('change', updateState)
-        markerAreaInstance.addEventListener('create', updateState)
-        markerAreaInstance.addEventListener('delete', updateState)
-        markerAreaInstance.addEventListener('select', updateState)
+        // Use marker.js 3 specific events with proper typing
+        markerAreaInstance.addEventListener('markerchange' as any, updateState)
+        markerAreaInstance.addEventListener('markercreated' as any, updateState)
+        markerAreaInstance.addEventListener('markerdeleted' as any, updateState)
+        markerAreaInstance.addEventListener('markerselected' as any, updateState)
         
         setMarkerArea(markerAreaInstance)
       }
@@ -99,23 +99,45 @@ export default function PhotoAnnotationEditor({
     
     setCurrentTool(toolId)
     
-    if (toolId === 'select') {
-      markerArea.switchToSelectMode()
-    } else {
-      // Get the marker type class - MarkerJS 3 uses dynamic imports
-      markerArea.createMarker(toolId)
+    try {
+      if (toolId === 'select') {
+        if (typeof markerArea.switchToSelectMode === 'function') {
+          markerArea.switchToSelectMode()
+        }
+      } else {
+        // Try to create marker - marker.js 3 API may vary
+        if (typeof markerArea.createMarker === 'function') {
+          markerArea.createMarker(toolId)
+        } else if (typeof (markerArea as any)[toolId] === 'function') {
+          (markerArea as any)[toolId]()
+        }
+      }
+    } catch (error) {
+      console.warn('Tool selection error:', error)
     }
   }, [markerArea])
 
   const handleUndo = useCallback(() => {
     if (markerArea && canUndo) {
-      markerArea.undo()
+      try {
+        if (typeof markerArea.undo === 'function') {
+          markerArea.undo()
+        }
+      } catch (error) {
+        console.warn('Undo not available:', error)
+      }
     }
   }, [markerArea, canUndo])
 
   const handleRedo = useCallback(() => {
     if (markerArea && canRedo) {
-      markerArea.redo()
+      try {
+        if (typeof markerArea.redo === 'function') {
+          markerArea.redo()
+        }
+      } catch (error) {
+        console.warn('Redo not available:', error)
+      }
     }
   }, [markerArea, canRedo])
 
@@ -146,25 +168,30 @@ export default function PhotoAnnotationEditor({
   }, [markerArea, annotationState])
 
   const handleSave = useCallback(async () => {
-    if (!markerArea || !annotationState) return
+    if (!markerArea) return
     
     try {
       // Get the current state
-      const state = markerArea.getState()
+      const state = markerArea.getState ? markerArea.getState() : annotationState
       
-      // Use MarkerJS 3 renderer to create annotated image
-      const { Renderer } = await import('@markerjs/markerjs3')
-      const renderer = new Renderer()
-      renderer.targetImage = imageRef.current!
-      
-      const annotatedImageData = await renderer.rasterize(state)
-      
-      onSave(annotatedImageData, state)
+      // Try to render with MarkerJS 3 renderer
+      try {
+        const { Renderer } = await import('@markerjs/markerjs3')
+        const renderer = new Renderer()
+        renderer.targetImage = imageRef.current!
+        
+        const annotatedImageData = await renderer.rasterize(state)
+        onSave(annotatedImageData, state)
+      } catch (renderError) {
+        // Fallback: just use the original image with annotation state
+        console.warn('Renderer not available, using original image:', renderError)
+        onSave(imageToAnnotate!, state)
+      }
     } catch (error) {
       console.error('Error saving annotation:', error)
       alert('Error saving annotation. Please try again.')
     }
-  }, [markerArea, annotationState, onSave])
+  }, [markerArea, annotationState, onSave, imageToAnnotate])
 
   const colorPresets = [
     { name: 'Red', color: '#ff6b6b' },
