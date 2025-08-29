@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Image Analysis Chat</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .container { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { background: #e9ecef; padding: 15px; border-radius: 4px; margin-top: 10px; white-space: pre-wrap; }
+        .error { background: #f8d7da; color: #721c24; }
+        .success { background: #d4edda; color: #155724; }
+        input[type="file"] { margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🤖 AI Image Analysis Chat - Test Page</h1>
+    
+    <div class="container">
+        <h3>Test Backend Connection</h3>
+        <button onclick="testHealth()">Test Health Endpoint</button>
+        <button onclick="testGemini()">Test Gemini Integration</button>
+        <div id="healthResult" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="container">
+        <h3>Test Image Analysis</h3>
+        <input type="file" id="imageInput" accept="image/*">
+        <br>
+        <button onclick="analyzeImage()">Analyze Image</button>
+        <div id="analysisResult" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="container">
+        <h3>App Status</h3>
+        <p><strong>Backend:</strong> <span id="backendStatus">Testing...</span></p>
+        <p><strong>Frontend:</strong> <span id="frontendStatus">Running on port 3001</span></p>
+        <p><strong>Supabase:</strong> <span id="supabaseStatus">Connected</span></p>
+        <p><strong>Gemini AI:</strong> <span id="geminiStatus">Testing...</span></p>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000';
+
+        async function testHealth() {
+            const resultDiv = document.getElementById('healthResult');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = 'Testing...';
+            
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ ${data.message}`;
+                document.getElementById('backendStatus').textContent = '✅ Running';
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Error: ${error.message}`;
+                document.getElementById('backendStatus').textContent = '❌ Error';
+            }
+        }
+
+        async function testGemini() {
+            const resultDiv = document.getElementById('healthResult');
+            resultDiv.style.display = 'block';
+            resultDiv.textContent = 'Testing Gemini...';
+            
+            try {
+                const response = await fetch(`${API_URL}/test-gemini`);
+                const data = await response.json();
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ Gemini Response: ${data.response}`;
+                document.getElementById('geminiStatus').textContent = '✅ Working';
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Error: ${error.message}`;
+                document.getElementById('geminiStatus').textContent = '❌ Error';
+            }
+        }
+
+        async function analyzeImage() {
+            const fileInput = document.getElementById('imageInput');
+            const resultDiv = document.getElementById('analysisResult');
+            
+            if (!fileInput.files[0]) {
+                alert('Please select an image first');
+                return;
+            }
+
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result';
+            resultDiv.textContent = 'Analyzing image...';
+
+            try {
+                // Convert image to base64
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = async function(e) {
+                    try {
+                        const response = await fetch(`${API_URL}/upload-image`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                image: e.target.result,
+                                user_id: 'test-user-123' // Mock user ID
+                            })
+                        });
+
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            resultDiv.className = 'result success';
+                            resultDiv.textContent = `✅ Analysis Result:\n\n${data.analysis}`;
+                        } else {
+                            resultDiv.className = 'result error';
+                            resultDiv.textContent = `❌ Error: ${data.error}`;
+                        }
+                    } catch (error) {
+                        resultDiv.className = 'result error';
+                        resultDiv.textContent = `❌ Error: ${error.message}`;
+                    }
+                };
+                
+                reader.readAsDataURL(file);
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+
+        // Test backend on page load
+        window.onload = function() {
+            testHealth();
+        };
+    </script>
+</body>
+</html>
