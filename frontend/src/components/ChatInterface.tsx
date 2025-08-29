@@ -26,6 +26,7 @@ export default function ChatInterface({ user }: ChatInterfaceProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -168,6 +169,17 @@ export default function ChatInterface({ user }: ChatInterfaceProps) {
     if (file) {
       handleImageUpload(file)
     }
+    // Reset the input value to allow selecting the same file again
+    e.target.value = ''
+  }
+
+  const handleCameraSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleImageUpload(file)
+    }
+    // Reset the input value to allow selecting the same file again
+    e.target.value = ''
   }
 
   return (
@@ -230,7 +242,7 @@ export default function ChatInterface({ user }: ChatInterfaceProps) {
             <div className="max-w-3xl mx-auto space-y-4">
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                  <div className={`${editingMessageId === message.id && message.type === 'ai' ? 'w-full' : 'max-w-xs lg:max-w-md'} px-4 py-2 rounded-lg ${
                     message.type === 'user' 
                       ? 'bg-blue-600 text-white' 
                       : 'bg-white text-gray-900 shadow-sm border'
@@ -249,7 +261,8 @@ export default function ChatInterface({ user }: ChatInterfaceProps) {
                             <textarea
                               value={editText}
                               onChange={(e) => setEditText(e.target.value)}
-                              className="w-full p-2 text-sm border rounded resize-none h-24 focus:ring-2 focus:ring-blue-500"
+                              className="w-full p-3 text-sm border rounded resize-none h-32 focus:ring-2 focus:ring-blue-500 text-gray-900"
+                              placeholder="Edit the AI response..."
                             />
                             <div className="flex space-x-2">
                               <button
@@ -302,12 +315,20 @@ export default function ChatInterface({ user }: ChatInterfaceProps) {
         {/* Input Area */}
         <div className="bg-white border-t px-4 py-4">
           <div className="max-w-3xl mx-auto">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 flex-wrap gap-2">
               <input
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileSelect}
                 accept="image/*"
+                className="hidden"
+              />
+              <input
+                type="file"
+                ref={cameraInputRef}
+                onChange={handleCameraSelect}
+                accept="image/*"
+                capture="environment"
                 className="hidden"
               />
               <button
@@ -324,8 +345,19 @@ export default function ChatInterface({ user }: ChatInterfaceProps) {
                 )}
                 {uploadingImage ? 'Uploading...' : 'Upload Image'}
               </button>
+              <button
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+              >
+                <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Take Photo
+              </button>
               <p className="text-sm text-gray-500">
-                Upload an image and I'll analyze it using your custom prompt
+                Upload an image or take a photo and I'll analyze it using your custom prompt
               </p>
             </div>
           </div>
