@@ -1,23 +1,6 @@
 import type { Context, Config } from "@netlify/functions";
-
-// Import dependencies - these will be installed by Netlify automatically
-let supabase: any;
-let genAI: any;
-
-async function initializeClients() {
-  if (!supabase) {
-    const { createClient } = await import('@supabase/supabase-js');
-    supabase = createClient(
-      Netlify.env.get('SUPABASE_URL') || '',
-      Netlify.env.get('SUPABASE_ANON_KEY') || ''
-    );
-  }
-  
-  if (!genAI) {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    genAI = new GoogleGenerativeAI(Netlify.env.get('GEMINI_API_KEY') || '');
-  }
-}
+import { createClient } from '@supabase/supabase-js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export default async (req: Request, context: Context) => {
   // Handle CORS preflight requests
@@ -59,8 +42,11 @@ export default async (req: Request, context: Context) => {
     
     const { image: imageData, user_id: userId, custom_prompt: customPrompt = 'Describe the contents of this image in detail. Be specific about objects, people, colors, and activities you see.' } = data;
     
-    // Initialize clients
-    await initializeClients();
+    // Initialize Supabase client
+    const supabase = createClient(
+      Netlify.env.get('SUPABASE_URL') || '',
+      Netlify.env.get('SUPABASE_ANON_KEY') || ''
+    );
     
     // Store image in Supabase
     const { data: imageRecord, error: imageError } = await supabase
@@ -87,7 +73,8 @@ export default async (req: Request, context: Context) => {
     const imageId = imageRecord.id;
     
     try {
-      // Get Gemini model
+      // Initialize Gemini AI
+      const genAI = new GoogleGenerativeAI(Netlify.env.get('GEMINI_API_KEY') || '');
       const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
       
       // Convert base64 to proper format for Gemini
