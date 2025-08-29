@@ -136,7 +136,8 @@ export default function PhotoAnnotationEditor({
     })
   }, [annotations])
 
-  const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
+
+  const getEventCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return { x: 0, y: 0 }
     
@@ -144,14 +145,28 @@ export default function PhotoAnnotationEditor({
     const scaleX = canvas.width / rect.width
     const scaleY = canvas.height / rect.height
     
+    let clientX: number, clientY: number
+    
+    if ('touches' in e) {
+      // Touch event
+      const touch = e.touches[0] || e.changedTouches[0]
+      clientX = touch.clientX
+      clientY = touch.clientY
+    } else {
+      // Mouse event
+      clientX = e.clientX
+      clientY = e.clientY
+    }
+    
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
     }
   }
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const coords = getCanvasCoordinates(e)
+  const handleStart = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    const coords = getEventCoordinates(e)
     
     if (currentTool === 'text') {
       setTextPosition(coords)
@@ -163,10 +178,11 @@ export default function PhotoAnnotationEditor({
     setStartPoint(coords)
   }
 
-  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleEnd = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
     if (!isDrawing || !startPoint) return
     
-    const coords = getCanvasCoordinates(e)
+    const coords = getEventCoordinates(e)
     const newAnnotation: Annotation = {
       type: currentTool as any,
       x: startPoint.x,
@@ -284,48 +300,48 @@ export default function PhotoAnnotationEditor({
               <button
                 key={tool.id}
                 onClick={() => setCurrentTool(tool.id)}
-                className={`flex items-center space-x-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
+                className={`flex items-center space-x-1 px-4 py-3 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
                   currentTool === tool.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-white text-gray-700 hover:bg-gray-100 border shadow-sm'
                 }`}
                 title={tool.description}
               >
-                <span>{tool.icon}</span>
+                <span className="text-lg">{tool.icon}</span>
                 <span>{tool.name}</span>
               </button>
             ))}
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex space-x-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={handleUndo}
                 disabled={annotations.length === 0}
-                className="flex items-center space-x-1 px-3 py-2 bg-white border rounded text-sm hover:bg-gray-50 disabled:opacity-50"
+                className="flex items-center space-x-1 px-4 py-3 bg-white border rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 min-h-[44px] shadow-sm"
               >
-                <span>↶</span>
+                <span className="text-lg">↶</span>
                 <span>Undo</span>
               </button>
               <button
                 onClick={handleClear}
                 disabled={annotations.length === 0}
-                className="flex items-center space-x-1 px-3 py-2 bg-red-100 text-red-700 border border-red-200 rounded text-sm hover:bg-red-200 disabled:opacity-50"
+                className="flex items-center space-x-1 px-4 py-3 bg-red-100 text-red-700 border border-red-200 rounded-lg text-sm hover:bg-red-200 disabled:opacity-50 min-h-[44px] shadow-sm"
               >
-                <span>🗑️</span>
+                <span className="text-lg">🗑️</span>
                 <span>Clear All</span>
               </button>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">Colors:</span>
-              <div className="flex space-x-1">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <span className="text-sm text-gray-600 font-medium">Colors:</span>
+              <div className="flex flex-wrap gap-2">
                 {colorPresets.map((preset) => (
                   <button
                     key={preset.color}
                     onClick={() => setCurrentColor(preset.color)}
-                    className={`w-6 h-6 rounded-full border-2 hover:scale-110 transition-transform ${
-                      currentColor === preset.color ? 'border-gray-800' : 'border-gray-300'
+                    className={`w-10 h-10 rounded-full border-3 hover:scale-105 transition-transform shadow-sm ${
+                      currentColor === preset.color ? 'border-gray-800 ring-2 ring-gray-400' : 'border-gray-300'
                     }`}
                     style={{ backgroundColor: preset.color }}
                     title={preset.name}
@@ -360,9 +376,12 @@ export default function PhotoAnnotationEditor({
               />
               <canvas
                 ref={canvasRef}
-                onMouseDown={handleMouseDown}
-                onMouseUp={handleMouseUp}
-                className="border border-gray-300 cursor-crosshair max-w-full max-h-[60vh] object-contain"
+                onMouseDown={handleStart}
+                onMouseUp={handleEnd}
+                onTouchStart={handleStart}
+                onTouchEnd={handleEnd}
+                className="border border-gray-300 cursor-crosshair max-w-full max-h-[60vh] object-contain touch-none"
+                style={{ touchAction: 'none' }}
               />
             </div>
           </div>
