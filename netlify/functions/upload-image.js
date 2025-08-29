@@ -53,10 +53,34 @@ exports.handler = async (event, context) => {
     
     // Initialize Supabase client
     console.log('Creating Supabase client...');
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_ANON_KEY
-    );
+    console.log('Environment variables available:', {
+      SUPABASE_URL: !!process.env.SUPABASE_URL,
+      SUPABASE_ANON_KEY: !!process.env.SUPABASE_ANON_KEY,
+      GEMINI_API_KEY: !!process.env.GEMINI_API_KEY
+    });
+    
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Missing Supabase configuration:', { supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey });
+      return {
+        statusCode: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          error: 'Supabase configuration missing',
+          debug: {
+            hasUrl: !!supabaseUrl,
+            hasKey: !!supabaseKey
+          }
+        })
+      };
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseKey);
     
     // Initialize Gemini AI
     console.log('Creating Gemini AI client...');
