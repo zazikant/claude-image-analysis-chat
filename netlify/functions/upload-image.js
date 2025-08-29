@@ -91,8 +91,11 @@ exports.handler = async (event, context) => {
     
     // Store image in Supabase
     console.log('Storing image in database...');
+    console.log('Supabase client type:', typeof supabase);
+    console.log('Supabase client methods:', Object.getOwnPropertyNames(supabase));
+    
     const { data: imageRecord, error: imageError } = await supabase
-      .table('images')
+      .from('images')
       .insert({
         user_id: userId,
         image_data: imageData,
@@ -137,7 +140,7 @@ exports.handler = async (event, context) => {
     // Store analysis results
     console.log('Storing analysis results...');
     const { data: analysisRecord, error: analysisError } = await supabase
-      .table('analysis')
+      .from('analysis')
       .insert({
         image_id: imageId,
         user_id: userId,
@@ -156,7 +159,7 @@ exports.handler = async (event, context) => {
     // Update image status
     console.log('Updating image status to completed...');
     await supabase
-      .table('images')
+      .from('images')
       .update({ status: 'completed' })
       .eq('id', imageId);
     
