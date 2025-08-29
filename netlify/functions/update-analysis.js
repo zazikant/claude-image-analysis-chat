@@ -64,6 +64,11 @@ exports.handler = async (event, context) => {
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
+    console.log('Environment check:', {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasSupabaseKey: !!supabaseKey
+    });
+    
     if (!supabaseUrl || !supabaseKey) {
       return {
         statusCode: 500,
@@ -77,16 +82,65 @@ exports.handler = async (event, context) => {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
     
+    // First, check if the analysis exists and belongs to the user
+    console.log('Checking if analysis exists...');
+    const { data: existingAnalysis, error: checkError } = await supabase
+      .from('analysis')
+      .select('id, user_id, analysis_text')
+      .eq('id', analysisId)
+      .single();
+    
+    console.log('Existing analysis check:', {
+      found: !!existingAnalysis,
+      analysisUserId: existingAnalysis?.user_id,
+      requestUserId: user_id,
+      userMatch: existingAnalysis?.user_id === user_id,
+      checkError: checkError?.message
+    });
+    
+    if (checkError) {
+      console.error('Error checking analysis:', checkError);
+      return {
+        statusCode: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ error: 'Failed to verify analysis', details: checkError.message })
+      };
+    }
+    
+    if (!existingAnalysis) {
+      return {
+        statusCode: 404,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ error: 'Analysis not found' })
+      };
+    }
+    
+    if (existingAnalysis.user_id !== user_id) {
+      return {
+        statusCode: 403,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ error: 'Not authorized to edit this analysis' })
+      };
+    }
+    
     // Update analysis in database
+    console.log('Performing update...');
     const { data: updatedRecord, error: updateError } = await supabase
       .from('analysis')
       .update({
         analysis_text: analysis_text,
-        is_edited: true,
-        updated_at: new Date().toISOString()
+        is_edited: true
       })
       .eq('id', analysisId)
-      .eq('user_id', user_id) // Ensure user can only edit their own analyses
       .select()
       .single();
     
